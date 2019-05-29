@@ -17,13 +17,17 @@
 
 namespace Okta\JwtVerifier;
 
+use Http\Client\Common\Plugin\CachePlugin;
 use Http\Client\Common\PluginClient;
 use Http\Client\HttpClient;
 use Http\Discovery\HttpClientDiscovery;
 use Http\Discovery\MessageFactoryDiscovery;
+use Http\Discovery\StreamFactoryDiscovery;
 use Http\Discovery\UriFactoryDiscovery;
 use Http\Message\MessageFactory;
+use Http\Message\StreamFactory;
 use Http\Message\UriFactory;
+use Psr\Cache\CacheItemPoolInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;
 
@@ -32,6 +36,8 @@ class Request
     protected $httpClient;
     protected $uriFactory;
     protected $messageFactory;
+    protected $streamFactory;
+    protected $cacheItemPool;
 
     /**
      * The UriInterface of the request to be made.
@@ -50,14 +56,21 @@ class Request
     public function __construct(
         HttpClient $httpClient = null,
         UriFactory $uriFactory = null,
-        MessageFactory $messageFactory = null
+        MessageFactory $messageFactory = null,
+        StreamFactory $streamFactory = null,
+        CacheItemPoolInterface $cacheItemPool = null
     ) {
-        $this->httpClient = new PluginClient(
-            $httpClient ?: HttpClientDiscovery::find()
-        );
-
+        $plugins = [];
+        if ($cacheItemPool) {
+            $streamFactory = $streamFactory ?: StreamFactoryDiscovery::find();
+            $plugins[] = new CachePlugin($cacheItemPool, $streamFactory);
+        }
         $this->uriFactory = $uriFactory ?: UriFactoryDiscovery::find();
         $this->messageFactory = $messageFactory ?: MessageFactoryDiscovery::find();
+        $this->httpClient = new PluginClient(
+            $httpClient ?: HttpClientDiscovery::find(),
+            $plugins
+        );
     }
 
     public function setUrl($url): Request
